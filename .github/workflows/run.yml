@@ -1,11 +1,9 @@
+name: Baumarkt Checker
 
-- name: Start
-  run: python main.py
-  env:
-    TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-    CHAT_ID: ${{ secrets.CHAT_ID }}
-``
-
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
   run:
@@ -24,5 +22,7 @@ jobs:
         run: pip install requests python-telegram-bot
 
       - name: Start
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
-
