@@ -1,7 +1,6 @@
 import requests
 import os
 import asyncio
-import json
 from telegram import Bot
 
 # ==========================
@@ -17,7 +16,7 @@ SEARCHES = [
 
 KEYWORDS = ["midea", "12000", "portasplit"]
 
-AVAILABILITY_HINTS = [
+POSITIVE_HINTS = [
     "abholung",
     "verfügbar",
     "lieferbar",
@@ -27,34 +26,23 @@ AVAILABILITY_HINTS = [
     "bestellbar"
 ]
 
+NEGATIVE_HINTS = [
+    "nicht verfügbar",
+    "nicht lieferbar",
+    "derzeit nicht",
+    "ausverkauft",
+    "kein bestand"
+]
+
 # 👉 Freiburg + Umgebung (PLZ Trick)
 PLZ_LIST = ["79098", "79100", "79106", "79206", "79312", "77652"]
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-STATE_FILE = "seen.json"
-
 
 # ==========================
-# SPAM SCHUTZ (Speicher)
-# ==========================
-
-def load_seen():
-    try:
-        with open(STATE_FILE, "r") as f:
-            return set(json.load(f))
-    except:
-        return set()
-
-
-def save_seen(seen):
-    with open(STATE_FILE, "w") as f:
-        json.dump(list(seen), f)
-
-
-# ==========================
-# SHOP CHECK mit PLZ Trick
+# SHOP CHECK
 # ==========================
 
 def check_shop(name, url):
@@ -64,18 +52,23 @@ def check_shop(name, url):
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0",
-                "X-Forwarded-For": f"79.{plz[:2]}.1.1",  # Fake Region
-                "Accept-Language": "de-DE,de;q=0.9"
+                "Accept-Language": "de-DE,de;q=0.9",
+                "X-Forwarded-For": f"79.{plz[:2]}.1.1"
             }
 
             r = requests.get(url, headers=headers, timeout=10)
             text = r.text.lower()
 
-            if all(k in text for k in KEYWORDS):
-                if any(a in text for a in AVAILABILITY_HINTS):
+            # Produkt vorhanden?
+            keyword_hit = all(k in text for k in KEYWORDS)
 
-                    result = f"{name} (PLZ {plz}) → evtl. verfügbar\n{url}"
-                    results.append(result)
+            # Verfügbarkeit prüfen
+            positive = any(p in text for p in POSITIVE_HINTS)
+            negative = any(n in text for n in NEGATIVE_HINTS)
+
+            if keyword_hit and positive and not negative:
+                result = f"✅ {name} (PLZ {plz}) → wahrscheinlich verfügbar\n{url}"
+                results.append(result)
 
         except Exception as e:
             print(name, "Fehler:", e)
@@ -97,28 +90,23 @@ async def send_message(msg):
 # ==========================
 
 async def main():
-    print("🔍 Prüfe Baumärkte + PLZ...")
+    print("🔍 Prüfe Baumärkte...")
 
-    seen = load_seen()
-    new_hits = set()
+    all_results = []
 
     for name, url in SEARCHES:
         results = check_shop(name, url)
+        all_results.extend(results)
 
-        for r in results:
-            if r not in seen:
-                new_hits.add(r)
+    if all_results:
+        message = "🚨 PortaSplit möglicherweise verfügbar!\n\n"
+        message += "\n\n".join(all_results)
 
-    if new_hits:
-        msg = "🚨 PortaSplit gefunden!\n\n" + "\n\n".join(new_hits)
-        await send_message(msg)
+        await send_message(message)
+        print("✅ Nachricht gesendet")
 
-        seen.update(new_hits)
-        save_seen(seen)
-
-        print("✅ Neue Treffer gesendet!")
     else:
-        print("❌ Keine neuen Treffer")
+        print("❌ Kein Treffer")
 
 
 # ==========================
@@ -127,4 +115,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
