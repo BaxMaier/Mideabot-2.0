@@ -1,6 +1,7 @@
 import requests
 import os
 import asyncio
+import datetime
 from telegram import Bot
 
 # ==========================
@@ -34,11 +35,30 @@ NEGATIVE_HINTS = [
     "kein bestand"
 ]
 
-# 👉 Freiburg + Umgebung (PLZ Trick)
+# Freiburg Umgebung (PLZ Trick)
 PLZ_LIST = ["79098", "79100", "79106", "79206", "79312", "77652"]
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+
+
+# ==========================
+# TELEGRAM SEND
+# ==========================
+
+async def send_message(msg):
+    bot = Bot(token=TOKEN)
+    await bot.send_message(chat_id=CHAT_ID, text=msg)
+
+
+# ==========================
+# STATUSMELDUNG
+# ==========================
+
+def should_send_status():
+    now = datetime.datetime.now()
+    # jeden Tag zwischen 09:00 und 09:05
+    return now.hour == 9
 
 
 # ==========================
@@ -59,10 +79,7 @@ def check_shop(name, url):
             r = requests.get(url, headers=headers, timeout=10)
             text = r.text.lower()
 
-            # Produkt vorhanden?
             keyword_hit = all(k in text for k in KEYWORDS)
-
-            # Verfügbarkeit prüfen
             positive = any(p in text for p in POSITIVE_HINTS)
             negative = any(n in text for n in NEGATIVE_HINTS)
 
@@ -71,42 +88,52 @@ def check_shop(name, url):
                 results.append(result)
 
         except Exception as e:
-            print(name, "Fehler:", e)
+            print(f"{name} Fehler:", e)
 
     return results
 
 
 # ==========================
-# TELEGRAM SEND
-# ==========================
-
-async def send_message(msg):
-    bot = Bot(token=TOKEN)
-    await bot.send_message(chat_id=CHAT_ID, text=msg)
-
-
-# ==========================
-# MAIN LOGIK
+# MAIN
 # ==========================
 
 async def main():
-    print("🔍 Prüfe Baumärkte...")
+    try:
+        print("🔍 Prüfe Baumärkte...")
 
-    all_results = []
+        all_results = []
 
-    for name, url in SEARCHES:
-        results = check_shop(name, url)
-        all_results.extend(results)
+        for name, url in SEARCHES:
+            results = check_shop(name, url)
+            all_results.extend(results)
 
-    if all_results:
-        message = "🚨 PortaSplit möglicherweise verfügbar!\n\n"
-        message += "\n\n".join(all_results)
+        # ✅ Treffer gefunden
+        if all_results:
+            message = "🚨 PortaSplit möglicherweise verfügbar!\n\n"
+            message += "\n\n".join(all_results)
 
-        await send_message(message)
-        print("✅ Nachricht gesendet")
+            await send_message(message)
+            print("✅ Treffer gesendet")
 
-    else:
-        print("❌ Kein Treffer")
+        # ✅ tägliche Statusmeldung
+        elif should_send_status():
+            now = datetime.datetime.now().strftime("%H:%M")
+            msg = f"✅ Status: Bot läuft ({now}), kein Treffer aktuell."
+            await send_message(msg)
+            print("ℹ️ Status gesendet")
+
+        else:
+            print("❌ Kein Treffer")
+
+    except Exception as e:
+        # ✅ Fehlerüberwachung
+        error_msg = f"❌ BOT FEHLER:\n{str(e)}"
+        print(error_msg)
+
+        try:
+            await send_message(error_msg)
+        except:
+            print("⚠️ Telegram Fehler konnte nicht gesendet werden")
 
 
 # ==========================
@@ -115,3 +142,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+``
