@@ -47,20 +47,6 @@ def send(msg):
     bot.send_message(chat_id=CHAT_ID, text=msg)
 
 
+
 def main():
-    results = []
-
-    for name, url in SEARCHES:
-        try:
-            res = check_shop(name, url)
-            if res:
-                results.append(res)
-        except Exception as e:
-            print(name, "Fehler:", e)
-
-    if results:
-        send("\n\n".join(results))
-
-
-if __name__ == "__main__":
-    main()
+    send("✅ Test erfolgreich – Bot funktioniert!")
