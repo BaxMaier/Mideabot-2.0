@@ -2,27 +2,26 @@ name: Baumarkt Checker
 
 on:
   schedule:
-    - cron: "*/6 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
+  push:   # 🔥 das ist der FIX
+    branches:
+      - main
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Code laden
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Python installieren
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Installieren
-        run: pip install requests python-telegram-bot
+      - run: pip install requests python-telegram-bot
 
-      - name: Start
+      - run: python main.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python main.py
